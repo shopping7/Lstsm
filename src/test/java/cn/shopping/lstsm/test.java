@@ -1,6 +1,6 @@
 package cn.shopping.lstsm;
 
-import cn.shopping.lstsm.entity.MSK;
+import cn.shopping.lstsm.entity.*;
 import cn.shopping.lstsm.service.AlgorithmServiceImpl;
 import cn.shopping.lstsm.utils.lsss.LSSSEngine;
 import cn.shopping.lstsm.utils.lsss.LSSSMatrix;
@@ -35,22 +35,28 @@ public class test {
         LSSSMatrix lsssD1 = lsss.extract(user_attr);
         int lsssIndex[] = lsssD1.getIndex();
 
+
         AlgorithmServiceImpl algorithmService = new AlgorithmServiceImpl();
         MSK msk = algorithmService.setup();
-        String id = "id";
-        algorithmService.KeyGen(msk,id,user_attr);
+        String id = "id123";
+        PKAndSK pkAndSK = algorithmService.KeyGen(msk, id, user_attr);
+        SK sk = pkAndSK.getSk();
+        PK pk = pkAndSK.getPk();
         String KW = "doctor";
-        algorithmService.Enc("crypto",lsss, KW);
+        CT ct = algorithmService.Enc(sk, "crypto", lsss, KW);
         String KW1 = "doctor";
-        algorithmService.Trapdoor(KW1);
-        boolean test = algorithmService.Test(lsssD1, lsssIndex);
+        Tkw trapdoor = algorithmService.Trapdoor(sk, KW1);
+        boolean test = algorithmService.Test(pk, ct, trapdoor, lsssD1, lsssIndex);
         if(test){
-            algorithmService.Transform();
-            byte[] bytes = algorithmService.Dec();
+            CTout CTout = algorithmService.Transform(ct, trapdoor, pk);
+            byte[] bytes = algorithmService.Dec(CTout, sk);
             String str = new String(bytes);
             System.out.println(str);
         }
-
+        if(algorithmService.KeySanityCheck(sk)){
+            String id_re = algorithmService.Trace(msk, sk);
+            System.out.println(id_re);
+        }
 
     }
 }

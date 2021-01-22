@@ -1,16 +1,13 @@
 package cn.shopping.lstsm.service;
 
-import cn.shopping.lstsm.entity.D3_Map;
-import cn.shopping.lstsm.entity.MSK;
+import cn.shopping.lstsm.entity.*;
 import cn.shopping.lstsm.utils.lsss.LSSSMatrix;
 import cn.shopping.lstsm.utils.lsss.LSSSShares;
 import cn.shopping.lstsm.utils.lsss.Vector;
-import com.sun.scenario.effect.impl.sw.sse.SSEBlend_SRC_OUTPeer;
 import it.unisa.dia.gas.jpbc.Element;
 import it.unisa.dia.gas.jpbc.Field;
 import it.unisa.dia.gas.jpbc.Pairing;
 import it.unisa.dia.gas.plaf.jpbc.pairing.PairingFactory;
-import org.omg.CORBA.PRIVATE_MEMBER;
 import org.springframework.util.DigestUtils;
 
 import java.util.Base64;
@@ -18,12 +15,10 @@ import java.util.Base64;
 public class AlgorithmServiceImpl {
     private Pairing pairing;
     public static Field G1, GT, Zr, K;
-    private Element g, alpha, lambda, tau, k1, k2, f, Y, Y0, h;
-    private Element  s_1, s_11, u_1, u_11, u_111, D1, D2, D4;
-    private Element[] D3, psi3, C3, C3_1;
-    private Element psi1, psi2, psi4, psi5;
-    private Element C0, C1, C2, C4, Cm;
-    private Element T0, T1, T2, T3, T3_1, T4, T5;
+    private Element g, f, Y, Y0, h;
+    private Element L,V; //云服务器存储
+    private Element gamma, u; //用户端存储
+
     public MSK setup(){
         pairing = PairingFactory.getPairing("a.properties");
         PairingFactory.getInstance().setUsePBCWhenPossible(true);
@@ -37,12 +32,12 @@ public class AlgorithmServiceImpl {
         GT = pairing.getGT();
 
         g = G1.newRandomElement().getImmutable();
-        alpha = Zr.newRandomElement().getImmutable();
-        lambda = Zr.newRandomElement().getImmutable();
-        tau = Zr.newRandomElement().getImmutable();
+        Element alpha = Zr.newRandomElement().getImmutable();
+        Element lambda = Zr.newRandomElement().getImmutable();
+        Element tau = Zr.newRandomElement().getImmutable();
 
-        k1 = K.newRandomElement().getImmutable();
-        k2 = K.newRandomElement().getImmutable();
+        Element k1 = K.newRandomElement().getImmutable();
+        Element k2 = K.newRandomElement().getImmutable();
 
         f = g.powZn(tau).getImmutable();
         Y = pairing.pairing(g, g).powZn(alpha).getImmutable();
@@ -59,29 +54,34 @@ public class AlgorithmServiceImpl {
         return msk;
     }
 
-    private Element a, r, rho;
-    public void KeyGen(MSK msk, String id, String attributes[]){
-        a = Zr.newRandomElement().getImmutable();
-        r = Zr.newRandomElement().getImmutable();
+    public PKAndSK KeyGen(MSK msk, String id, String attributes[]){
+        Element k1 = msk.getK1();
+        Element k2 = msk.getK2();
+        Element lambda = msk.getLambda();
+        Element alpha = msk.getAlpha();
+        Element tau = msk.getTau();
+        Element a = Zr.newRandomElement().getImmutable();
+        Element r = Zr.newRandomElement().getImmutable();
         Element theta = Zr.newRandomElement().getImmutable();
-        rho = Zr.newRandomElement().getImmutable();
-        s_1 = Zr.newRandomElement().getImmutable();
-        s_11 = Zr.newRandomElement().getImmutable();
-        u_1 = Zr.newRandomElement().getImmutable();
-        u_11 = Zr.newRandomElement().getImmutable();
-        u_111 = Zr.newRandomElement().getImmutable();
+        Element rho = Zr.newRandomElement().getImmutable();
+        Element s_1 = Zr.newRandomElement().getImmutable();
+        Element s_11 = Zr.newRandomElement().getImmutable();
+        Element u_1 = Zr.newRandomElement().getImmutable();
+        Element u_11 = Zr.newRandomElement().getImmutable();
+        Element u_111 = Zr.newRandomElement().getImmutable();
 
         byte[] zeta_byte = Crytpto.SEnc(id.getBytes(), k1.toBytes());
         String zeta = Base64.getEncoder().encodeToString(zeta_byte);
         String delta_1 = zeta + theta.toString();
         byte[] delta_2 = Crytpto.SEnc(delta_1.getBytes(), k2.toBytes());
+        String delta_s = Base64.getEncoder().encodeToString(delta_2);
         Element delta= Zr.newElementFromBytes(delta_2).getImmutable();
-        D1 = g.powZn((alpha.sub(a.mul(r))).div((lambda.add(delta)))).getImmutable();
-        D2 = delta.getImmutable();
+        Element D1 = g.powZn((alpha.sub(a.mul(r))).div((lambda.add(delta)))).getImmutable();
+        Element D2 = delta.getImmutable();
 
         int k = attributes.length;
         D3_Map[] D3 = new D3_Map[k];
-        psi3 = new Element[k];
+        Element[] psi3 = new Element[k];
         for (int i = 0; i < k; i++) {
             String attributes_md5 = DigestUtils.md5DigestAsHex(attributes[i].getBytes());
             Element xi = Zr.newElementFromHash(attributes_md5.getBytes(),0,attributes_md5.length()).getImmutable();
@@ -93,24 +93,50 @@ public class AlgorithmServiceImpl {
             psi3[i] = (D3_t.powZn(rho)).powZn(u_11).getImmutable();
         }
 
-        D4 = rho.getImmutable();
+        Element D4 = rho.getImmutable();
 
-        psi1 = D1.powZn(rho.mulZn(u_1)).getImmutable();
-        psi2 = Y0.powZn(u_111).getImmutable();
-        psi4 = g.powZn(s_1).getImmutable();
-        psi5 = f.powZn(s_11).getImmutable();
+        Element psi1 = D1.powZn(rho.mulZn(u_1)).getImmutable();
+        Element psi2 = Y0.powZn(u_111).getImmutable();
+        Element psi4 = g.powZn(s_1).getImmutable();
+        Element psi5 = f.powZn(s_11).getImmutable();
+
+        PK pk = new PK();
+        pk.setPsi1(psi1);
+        pk.setPsi2(psi2);
+        pk.setPsi3(psi3);
+        pk.setPsi4(psi4);
+        pk.setPsi5(psi5);
+
+        SK sk = new SK();
+        sk.setD1(D1);
+        sk.setD2(D2);
+        sk.setD3(D3);
+        sk.setD4(D4);
+        sk.setS_1(s_1);
+        sk.setS_11(s_11);
+        sk.setU_1(u_1);
+        sk.setU_11(u_11);
+        sk.setU_111(u_111);
+        sk.setDelta_s(delta_s);
+        sk.setTheta(theta);
+
+        PKAndSK pkAndsk = new PKAndSK();
+        pkAndsk.setPk(pk);
+        pkAndsk.setSk(sk);
+
+        return pkAndsk;
     }
 
-    private byte[] CM;
-    private Element gamma, s;
-    private Element[] s_i;
-    public void Enc(String msg, LSSSMatrix lsss, String KW) {
+
+    public CT Enc(SK sk,String msg, LSSSMatrix lsss, String KW) {
+        Element s_1 = sk.getS_1();
+        Element s_11 = sk.getS_11();
         gamma = GT.newRandomElement().getImmutable();
         String kse_t = DigestUtils.md5DigestAsHex(gamma.toBytes());
         Element kse = K.newElementFromBytes(kse_t.getBytes()).getImmutable();
 
-        CM = Crytpto.SEnc(msg.getBytes(), kse.toBytes());
-        s = Zr.newRandomElement().getImmutable();
+        byte[] CM = Crytpto.SEnc(msg.getBytes(), kse.toBytes());
+        Element s = Zr.newRandomElement().getImmutable();
 
         String attributes[] = lsss.getMap();
         int n = lsss.getMartix().getCols();
@@ -122,11 +148,11 @@ public class AlgorithmServiceImpl {
             Yn2[i] = Zr.newRandomElement().getImmutable();
         }
 
-        C3 = new Element[l];
-        C3_1 = new Element[l];
+        Element[] C3 = new Element[l];
+        Element[] C3_1 = new Element[l];
         Vector secret2 = new Vector(false, Yn2);
         LSSSShares shares2 = lsss.genShareVector2(secret2);
-        s_i = new Element[l];
+        Element[] s_i = new Element[l];
         String kw_md5 = DigestUtils.md5DigestAsHex(KW.getBytes());
         Element HKW = Zr.newElementFromHash(kw_md5.getBytes(), 0, kw_md5.length()).getImmutable();
         for (int i = 0; i < l; i++) {
@@ -137,32 +163,73 @@ public class AlgorithmServiceImpl {
             C3_1[i] = s_i[i].div(s_11.mul(HKW)).getImmutable();
         }
 
-        C0 = gamma.mul(Y.powZn(s)).getImmutable();
-        C1 = g.powZn(s).getImmutable();
-        C2 = h.powZn(s).getImmutable();
-        C4 = Y0.powZn(HKW).mul(Y.powZn(s.div(HKW))).getImmutable();
+        Element C0 = gamma.mul(Y.powZn(s)).getImmutable();
+        Element C1 = g.powZn(s).getImmutable();
+        Element C2 = h.powZn(s).getImmutable();
+        Element C4 = Y0.powZn(HKW).mul(Y.powZn(s.div(HKW))).getImmutable();
+
+        CT ct = new CT();
+        ct.setC0(C0);
+        ct.setC1(C1);
+        ct.setC2(C2);
+        ct.setC3(C3);
+        ct.setC3_1(C3_1);
+        ct.setC4(C4);
+        ct.setCm(CM);
+
+        return ct;
     }
 
-    private Element u,HKW_t, u0;
-    public void Trapdoor(String KW){
+
+    public Tkw Trapdoor(SK sk,String KW){
+        Element D2 = sk.getD2();
+        Element D4 = sk.getD4();
+        Element u_1 = sk.getU_1();
+        Element u_11 = sk.getU_11();
+        Element u_111 = sk.getU_111();
+
         String kw_t_md5 = DigestUtils.md5DigestAsHex(KW.getBytes());
-        HKW_t = Zr.newElementFromHash(kw_t_md5.getBytes(), 0, kw_t_md5.length()).getImmutable();
+        Element HKW_t = Zr.newElementFromHash(kw_t_md5.getBytes(), 0, kw_t_md5.length()).getImmutable();
 
         u = Zr.newRandomElement().getImmutable();
-        u0 = Zr.newRandomElement().getImmutable();
+        Element u0 = Zr.newRandomElement().getImmutable();
 
-        T0 = u.mul(u_1.invert()).getImmutable();
-        T1 = u0.div(u_1.mul(HKW_t)).getImmutable();
-        T2 = D2.getImmutable();
-        T3 = u0.mul(u_11.invert()).getImmutable();
-        T3_1 = u.mul(HKW_t).mul(u_11.invert()).getImmutable();
-        T4 = u0.mul(D4).getImmutable();
-        T5 = u0.mul(D4).mul(HKW_t).mul(u_111.invert()).getImmutable();
+        Element T0 = u.mul(u_1.invert()).getImmutable();
+        Element T1 = u0.div(u_1.mul(HKW_t)).getImmutable();
+        Element T2 = D2.getImmutable();
+        Element T3 = u0.mul(u_11.invert()).getImmutable();
+        Element T3_1 = u.mul(HKW_t).mul(u_11.invert()).getImmutable();
+        Element T4 = u0.mul(D4).getImmutable();
+        Element T5 = u0.mul(D4).mul(HKW_t).mul(u_111.invert()).getImmutable();
+
+        Tkw Tkw = new Tkw();
+        Tkw.setT0(T0);
+        Tkw.setT1(T1);
+        Tkw.setT2(T2);
+        Tkw.setT3(T3);
+        Tkw.setT3_1(T3_1);
+        Tkw.setT4(T4);
+        Tkw.setT5(T5);
+        return Tkw;
     }
 
-    private Element L, V;
-    private Element V_verify,L_verify, s_verify, L2_verify, V2_verify, RightEq_verify;
-    public boolean Test(LSSSMatrix lsssD1, int lsssIndex[]){
+
+    public boolean Test(PK pk, CT ct, Tkw Tkw, LSSSMatrix lsssD1, int lsssIndex[]){
+        Element psi1 = pk.getPsi1();
+        Element psi2 = pk.getPsi2();
+        Element[] psi3 = pk.getPsi3();
+        Element psi4 = pk.getPsi4();
+        Element psi5 = pk.getPsi5();
+        Element C1 = ct.getC1();
+        Element C2 = ct.getC2();
+        Element[] C3 = ct.getC3();
+        Element[] C3_1 = ct.getC3_1();
+        Element C4 = ct.getC4();
+        Element T1 = Tkw.getT1();
+        Element T2 = Tkw.getT2();
+        Element T3 = Tkw.getT3();
+        Element T4 = Tkw.getT4();
+        Element T5 = Tkw.getT5();
         Vector w_v = lsssD1.getRv();
         if(w_v == null){
             System.out.println("不符合要求");
@@ -208,19 +275,30 @@ public class AlgorithmServiceImpl {
         }
     }
 
-    private Element L1, V1;
-    private Element L1_verify, V1_verify;
-    public void Transform(){
-        L1 = L.powZn(T0).getImmutable();
+    public CTout Transform(CT ct, Tkw Tkw, PK pk){
+        Element T0 = Tkw.getT0();
+        Element T3_1 = Tkw.getT3_1();
+
+        Element L1 = L.powZn(T0).getImmutable();
        // L1_verify = pairing.pairing(g,g).powZn((alpha.sub(a.mul(r))).mul(rho).mul(u).mul(s)).getImmutable();
 
-        V1 = V.powZn(T3_1).getImmutable();
+        Element V1 = V.powZn(T3_1).getImmutable();
       //  V1_verify = pairing.pairing(g,g).powZn((a.mul(r).mul(rho).mul(u).mul(s)));
-
+        CTout CTout = new CTout();
+        CTout.setC0(ct.getC0());
+        CTout.setL1(L1);
+        CTout.setV1(V1);
+        CTout.setCm(ct.getCm());
+        return CTout;
     }
 
 
-    public byte[] Dec(){
+    public byte[] Dec(CTout CTout, SK sk){
+        Element C0 = CTout.getC0();
+        Element L1 = CTout.getL1();
+        Element V1 = CTout.getV1();
+        byte[] CM = CTout.getCm();
+        Element D4 = sk.getD4();
         Element gamma_verify = C0.div((L1.mul(V1)).powZn(u.mul(D4).invert())).getImmutable();
 
       //  L1V1_verify = pairing.pairing(g,g).powZn(alpha.mul(rho).mul(u).mul(s));
@@ -235,4 +313,56 @@ public class AlgorithmServiceImpl {
             return null;
         }
     }
+
+    public boolean KeySanityCheck(SK sk){
+        Element D1 = sk.getD1().getImmutable();
+        Element D2 = sk.getD2().getImmutable();
+        D3_Map[] D3 = sk.getD3();
+        Element D4 = sk.getD4().getImmutable();
+        Element s_1 = sk.getS_1().getImmutable();
+        Element s_11 = sk.getS_11().getImmutable();
+        Element u_1 = sk.getU_1().getImmutable();
+        Element u_11 = sk.getU_11().getImmutable();
+        Element u_111 = sk.getU_111().getImmutable();
+        int k_t = D3.length;
+        Element sum = G1.newElement().setToOne().getImmutable();
+        Element sum1 = G1.newElement().setToOne().getImmutable();
+        Element k = Zr.newElement(k_t).getImmutable();
+        for (int i = 0; i < k_t; i++) {
+            String attributes_md5 = DigestUtils.md5DigestAsHex(D3[i].getAttr().getBytes());
+            Element xi = Zr.newElementFromHash(attributes_md5.getBytes(),0,attributes_md5.length()).getImmutable();
+            sum = sum.mul(D3[i].getD3().powZn(xi));
+            sum1 = sum1.mul(D3[i].getD3());
+        }
+        Element e1 = pairing.pairing(D1,(h.mul(g.powZn(D2)))).powZn(k);
+        Element e2 = pairing.pairing(g,sum);
+        Element e3 = pairing.pairing(f,sum1);
+        Element left = e1.mul(e2).mul(e3);
+        Element right = Y.powZn(k);
+        if(left.equals(right)){
+            return true;
+        }
+        return false;
+    }
+
+    public String Trace(MSK msk, SK sk){
+        Element k1 = msk.getK1();
+        Element k2 = msk.getK2();
+        String delta = sk.getDelta_s();
+        Element theta = sk.getTheta();
+        byte[] delta_2 = Base64.getDecoder().decode(delta);
+        byte[] delta_m = Crytpto.SDec(delta_2, k2.toBytes());
+        String theta_s = new String(delta_m);
+        String zeta = theta_s.replace(theta.toString(),"");
+        byte[] decoded = Base64.getDecoder().decode(zeta);
+        byte[] id_t = Crytpto.SDec(decoded,k1.toBytes());
+        String id_revo = new String(id_t);
+        if(id_revo != null){
+            return id_revo;
+        }else{
+            return null;
+        }
+
+    }
 }
+
